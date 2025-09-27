@@ -1,8 +1,7 @@
+# project/app.py
 import os
 from pathlib import Path
-from functools import wraps
-from sqlalchemy import inspect
-
+from functools import wraps  
 
 from flask import (
     Flask,
@@ -17,7 +16,7 @@ from flask import (
 )
 from flask_sqlalchemy import SQLAlchemy
 
-# ---------- CONFIG (must be above from_object) ----------
+# ---------- CONFIG ----------
 basedir = Path(__file__).resolve().parent
 
 DATABASE = "flaskr.db"
@@ -25,7 +24,6 @@ USERNAME = "admin"
 PASSWORD = "admin"
 SECRET_KEY = "change_me"
 
-# Prefer DATABASE_URL (Render), else fall back to SQLite
 url = os.getenv("DATABASE_URL", f"sqlite:///{basedir / DATABASE}")
 if url.startswith("postgres://"):
     url = url.replace("postgres://", "postgresql://", 1)
@@ -33,20 +31,18 @@ if url.startswith("postgres://"):
 SQLALCHEMY_DATABASE_URI = url
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-
 # ---------- APP / DB ----------
 app = Flask(__name__)
-app.config.from_object(__name__)  # <- loads USERNAME/PASSWORD/SECRET_KEY/etc
+app.config.from_object(__name__)
 db = SQLAlchemy(app)
 
-with app.app_context():
-    inspector = inspect(db.engine)
-    if "post" not in inspector.get_table_names():
-        db.create_all()
-
-# import models after db created
+# Import models AFTER db is created, BEFORE create_all
 from project import models  # noqa: E402
 
+# Ensure tables exist on boot (works on Render too)
+with app.app_context():
+    db.create_all()
+    app.logger.info("DB tables ensured on boot")
 
 # ---------- HELPERS ----------
 def login_required(f):
@@ -56,16 +52,13 @@ def login_required(f):
             flash("Please log in.")
             return jsonify({"status": 0, "message": "Please log in."}), 401
         return f(*args, **kwargs)
-
     return decorated
-
 
 # ---------- ROUTES ----------
 @app.route("/")
 def index():
     entries = db.session.query(models.Post).order_by(models.Post.id.desc()).all()
     return render_template("index.html", entries=entries)
-
 
 @app.route("/add", methods=["POST"])
 def add_entry():
@@ -77,10 +70,8 @@ def add_entry():
     flash("New entry was successfully posted")
     return redirect(url_for("index"))
 
-
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    # If already logged in, bounce to home
     if request.method == "GET" and session.get("logged_in"):
         return redirect(url_for("index"))
 
@@ -93,7 +84,7 @@ def login():
         else:
             session["logged_in"] = True
             flash("You were logged in")
-            return redirect(url_for("index"))  # ← CRITICAL
+            return redirect(url_for("index"))
     return render_template("login.html", error=error)
 
 @app.route("/logout")
@@ -101,7 +92,6 @@ def logout():
     session.pop("logged_in", None)
     flash("You were logged out")
     return redirect(url_for("index"))
-
 
 @app.route("/delete/<int:post_id>", methods=["GET"])
 @login_required
@@ -116,13 +106,11 @@ def delete_entry(post_id):
         result = {"status": 0, "message": repr(e)}
     return jsonify(result)
 
-
 @app.route("/search/", methods=["GET"])
 def search():
     query = request.args.get("query", "")
     entries = db.session.query(models.Post).order_by(models.Post.id.desc()).all()
     return render_template("search.html", entries=entries, query=query)
-
 
 if __name__ == "__main__":
     app.run()
