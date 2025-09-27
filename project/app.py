@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 from functools import wraps
+from sqlalchemy import inspect
+
 
 from flask import (
     Flask,
@@ -17,22 +19,30 @@ from flask_sqlalchemy import SQLAlchemy
 
 # ---------- CONFIG (must be above from_object) ----------
 basedir = Path(__file__).resolve().parent
+
 DATABASE = "flaskr.db"
 USERNAME = "admin"
 PASSWORD = "admin"
 SECRET_KEY = "change_me"
 
-# SQLite by default; allow Postgres on Render
-url = os.getenv("DATABASE_URL", f"sqlite:///{(basedir / DATABASE)}")
+# Prefer DATABASE_URL (Render), else fall back to SQLite
+url = os.getenv("DATABASE_URL", f"sqlite:///{basedir / DATABASE}")
 if url.startswith("postgres://"):
     url = url.replace("postgres://", "postgresql://", 1)
+
 SQLALCHEMY_DATABASE_URI = url
 SQLALCHEMY_TRACK_MODIFICATIONS = False
+
 
 # ---------- APP / DB ----------
 app = Flask(__name__)
 app.config.from_object(__name__)  # <- loads USERNAME/PASSWORD/SECRET_KEY/etc
 db = SQLAlchemy(app)
+
+with app.app_context():
+    inspector = inspect(db.engine)
+    if "post" not in inspector.get_table_names():
+        db.create_all()
 
 # import models after db created
 from project import models  # noqa: E402
