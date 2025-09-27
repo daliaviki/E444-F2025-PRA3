@@ -5,4 +5,5 @@ Minimal Flask app with / returning “Hello, World!”
 TDD: failing test → passing test (Red → Green), then small refactor
 Deployment on Render using Gunicorn
 
-Landing page after login and posting: screenshots/landing_page_screenshot
+Landing page after login and posting: 
+screenshots/landing_page_screenshot.png
